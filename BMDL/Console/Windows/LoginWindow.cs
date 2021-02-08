@@ -49,13 +49,10 @@ namespace BMDL.Console.Windows
                     }
                     break;
                 default:
-                    if(char.IsSymbol(keyInfo.KeyChar))
-                    {
-                        if(UsernameEntered)
-                            Password += keyInfo.KeyChar;
-                        else
-                            Username += keyInfo.KeyChar;
-                    }
+                    if(UsernameEntered)
+                        Password += keyInfo.KeyChar;
+                    else
+                        Username += keyInfo.KeyChar;
                     break;
             }
         }

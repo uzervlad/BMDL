@@ -48,8 +48,7 @@ namespace BMDL.Console.Windows
                     App.API.SearchBeatmapsets("honesty");
                     break;
                 default:
-                    if(char.IsSymbol(keyInfo.KeyChar))
-                        OnCharInput(keyInfo.KeyChar);
+                    OnCharInput(keyInfo.KeyChar);
                     break;
             }
         }
