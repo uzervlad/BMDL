@@ -1,4 +1,5 @@
 using System;
+using System.IO;
 using System.Net;
 using System.Net.Http;
 using System.Text;
@@ -45,17 +46,25 @@ namespace BMDL.API
                 
                 token = newToken;
 
+                File.WriteAllText(@"./refresh.txt", token.RefreshToken);
+
                 OnAPILogin?.Invoke();
             }
         }
 
-        public async Task Refresh()
+        public async Task LoginWithRefreshToken(string RefreshToken)
+        {
+            await Refresh(RefreshToken);
+            OnAPILogin?.Invoke();
+        }
+
+        public async Task Refresh(string RefreshToken)
         {
             var json = JsonConvert.SerializeObject(new {
                 grant_type = "refresh_token",
                 client_id = 5,
                 client_secret = "FGc9GAtyHzeQDshWP5Ah7dega8hJACCAJpQtw6OXk",
-                refresh_token = token.RefreshToken,
+                refresh_token = RefreshToken,
                 score = "*"
             });
             var body = new StringContent(json, Encoding.UTF8, "application/json");
@@ -67,13 +76,15 @@ namespace BMDL.API
                 var newToken = JsonConvert.DeserializeObject<OAuthToken>(response.Content.ReadAsStringAsync().Result);
                 
                 token = newToken;
+
+                File.WriteAllText(@"./refresh.txt", token.RefreshToken);
             }
         }
 
         public async Task SearchBeatmapsets(string query)
         {
             if(!token.IsValid)
-                await Refresh();
+                await Refresh(token.RefreshToken);
             var url = new Uri("https://osu.ppy.sh/api/v2/beatmapsets/search")
                 .AddQuery("q", query);
 

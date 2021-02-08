@@ -22,6 +22,7 @@ namespace BMDL.Console
             windows = new List<Window>()
             {
                 new LoadingWindow(this),
+                new LoginWindow(this),
                 new MenuWindow(this),
                 new SearchWindow(this)
             };
@@ -32,6 +33,7 @@ namespace BMDL.Console
         {
             System.Console.CursorVisible = false;
             SetTitle("BMDL | Logging in...");
+            currentWindow.OnSwitch();
             Output();
 
             var keyThread = new Thread((c) => {
@@ -90,9 +92,14 @@ namespace BMDL.Console
             System.Console.WriteLine();
         }
 
+        public bool IsWindowOpened<T>() where T : Window
+        {
+            return currentWindow is T;
+        }
+
         public void SetWindow<T>() where T : Window
         {
-            var window = windows.OfType<T>().First() ?? windows.First();
+            var window = windows.OfType<T>().First();
             currentWindow = window;
             currentWindow.OnSwitch();
             Output();
