@@ -18,13 +18,17 @@ namespace BMDL.Console
 
         private void OnLoggedIn()
         {
-            if(!console.IsWindowOpened<LoadingWindow>()) return;
             console.SetTitle("BMDL");
             console.SetWindow<MenuWindow>();
         }
 
         public override void OnSwitch()
         {
+            if(App.SONGS_PATH.Length <= 0 || !Directory.Exists(App.SONGS_PATH))
+            {
+                console.SetWindow<SetupWindow>();
+                return;
+            }
             var tokenExists = File.Exists(@"./refresh.txt");
             if(!tokenExists)
                 console.SetWindow<LoginWindow>();

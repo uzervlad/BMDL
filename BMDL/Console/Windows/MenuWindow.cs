@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using static BMDL.API.APIAccess;
 
 namespace BMDL.Console.Windows
 {
@@ -16,18 +17,24 @@ namespace BMDL.Console.Windows
         {
             rawOutput.left = new List<WindowText> 
             { 
-                new WindowText("By map ID"), 
+                new WindowText("Search"),
                 new WindowText("By set ID"), 
-                new WindowText("Search"), 
+                new WindowText("By map ID"),
                 new WindowText("Queue"),
-                new WindowText("Exit")
+                new WindowText(App.DEBUG ? "Errors" : "Exit")
             };
+
+            if(App.DEBUG)
+                rawOutput.left.Add(new WindowText("Exit"));
 
             rawOutput.right = new List<WindowText> 
             {
                 new WindowText("Queue is empty"),
-                new WindowText("")
+                new WindowText("", ConsoleColor.Black, ConsoleColor.Blue),
+                new WindowText("", ConsoleColor.Black, ConsoleColor.Blue)
             };
+
+            App.DownloadQueue.OnQueueUpdate += OnQueueUpdate;
         }
 
         public override void ProcessInput(ConsoleKeyInfo keyInfo)
@@ -80,6 +87,7 @@ namespace BMDL.Console.Windows
         {
             if(CursorLocked)
             {
+                App.DownloadQueue.Add(int.Parse(SearchString), Cursor == 1 ? APIBeatmapsetLookupType.SetID : APIBeatmapsetLookupType.MapID);
                 CursorLocked = false;
                 SearchString = "";
                 rawOutput.left[Cursor].RemoveTempText();
@@ -87,25 +95,31 @@ namespace BMDL.Console.Windows
             else
                 switch(Cursor)
                 {
-                    case 0:
-                        // Map ID
-                        CursorLocked = true;
-                        break;
-                    case 1:
-                        // Set ID
-                        CursorLocked = true;
-                        break;
-                    case 2:
-                        // Search
+                    case 0: // Search
                         console.SetWindow<SearchWindow>();
                         break;
-                    case 3:
-                        // Queue
+                    case 1: // 1 = Set ID; 2 = Map ID
+                    case 2:
+                        CursorLocked = true;
+                        break;
+                    case 3: // Queue
+                        console.SetWindow<QueueWindow>();
                         break;
                     case 4:
+                        if(App.DEBUG)
+                            console.SetWindow<ErrorsWindow>();
+                        else
+                            console.Stop();
+                        break;
+                    case 5:
                         console.Stop();
                         break;
                 }
+        }
+
+        public void OnQueueUpdate()
+        {
+            console.Output();
         }
 
         public override WindowOutput GetOutput()
@@ -113,8 +127,14 @@ namespace BMDL.Console.Windows
             var output = rawOutput;
             output.ResetColors();
             output.left[Cursor].SetColors(ConsoleColor.White, ConsoleColor.Black);
+            output.right[0].SetText(App.DownloadQueue.Count > 0 ? $"{App.DownloadQueue.Count} remaining" : "Queue is empty");
             if(CursorLocked)
                 output.left[Cursor].SetTempText($"> {SearchString}");
+            if(App.DEBUG)
+            {
+                output.right[1].SetText($"DEBUG MODE");
+                output.right[2].SetText($"Token expires in: {App.API.token.ExpiresIn}");
+            }
             return output;
         }
     }

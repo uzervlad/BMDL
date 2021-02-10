@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Linq;
 using System.Text;
 using System.Threading;
@@ -17,14 +18,21 @@ namespace BMDL.Console
 
         private readonly WindowText EmptyText = new WindowText("");
 
+        private readonly int DebugLength = 10;
+
         public AppConsole()
         {
+            DebugLog.Initialize(this);
+            
             windows = new List<Window>()
             {
                 new LoadingWindow(this),
                 new LoginWindow(this),
                 new MenuWindow(this),
-                new SearchWindow(this)
+                new SearchWindow(this),
+                new QueueWindow(this),
+                new ErrorsWindow(this),
+                new SetupWindow(this)
             };
             currentWindow = windows.First();
         }
@@ -36,6 +44,8 @@ namespace BMDL.Console
             currentWindow.OnSwitch();
             Output();
 
+            System.Console.CancelKeyPress += ForceStop;
+
             var keyThread = new Thread((c) => {
                 var AC = c as AppConsole;
                 while(AC.Running)
@@ -43,9 +53,11 @@ namespace BMDL.Console
                     while(System.Console.KeyAvailable == false)
                         Thread.Sleep(100);
                     var key = System.Console.ReadKey();
+                    DebugLog.AddLog($"Key pressed: {key.Key}", ConsoleColor.Cyan);
                     AC.currentWindow.ProcessInput(key);
                     AC.Output();
                 }
+                System.Console.ForegroundColor = ConsoleColor.White;
                 System.Console.Clear();
             });
             keyThread.Start(this);
@@ -68,11 +80,32 @@ namespace BMDL.Console
                 var left = i < output.left.Count ? output.left[i] : EmptyText;
                 var right = i < output.right.Count ? output.right[i] : EmptyText;
                 WriteLine(i, left, right);
-            } 
+            }
+
+            if(App.DEBUG)
+            {
+                var log = DebugLog.GetLast(DebugLength);
+                var Height = System.Console.WindowHeight;
+                for(var i = 0; i < log.Count; i++)
+                {
+                    WriteLine(Height - (log.Count - i), EmptyText, log[i]);
+                }
+            }
+
+            System.Console.SetCursorPosition(0, System.Console.BufferHeight - 1);
         }
+
+        public void ForceStop(object sender, ConsoleCancelEventArgs args) => Stop();
 
         public void Stop()
         {
+            System.Console.ForegroundColor = ConsoleColor.White;
+            System.Console.Clear();
+            
+            var files = Directory.GetFiles(@"./Temp/");
+            foreach(var file in files)
+                File.Delete(file);
+
             Running = false;
         }
         
@@ -80,16 +113,24 @@ namespace BMDL.Console
         {
             left ??= EmptyText;
             right ??= EmptyText;
-            var Width = System.Console.BufferWidth;
+            int Width;
+            try {
+                Width = System.Console.BufferWidth;
+            } catch {
+                Width = 40;
+            }
             var maxLeftLength = Width - right.Length - 3;
-            System.Console.SetCursorPosition(0, row);
+            try {
+                System.Console.SetCursorPosition(0, row);
+            } catch {}
             if(left.Length > maxLeftLength)
                 left.Crop(maxLeftLength);
             left.Write();
 
-            System.Console.SetCursorPosition(Width - right.Length - 1, row);
+            try {
+                System.Console.SetCursorPosition(Width - right.Length - 1, row);
+            } catch {}
             right.Write();
-            System.Console.WriteLine();
         }
 
         public bool IsWindowOpened<T>() where T : Window

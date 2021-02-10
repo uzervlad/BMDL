@@ -9,21 +9,23 @@ namespace BMDL.Console
         private ConsoleColor bg = ConsoleColor.Black;
         private ConsoleColor fg = ConsoleColor.White;
 
+        public bool Temporary { private set; get; } = false;
+
         public int Length { 
             get {
-                return text.Length;
+                return text?.Length ?? 0;
             }
         }
 
-        public WindowText(string text)
-        {
-            this.text = text;
+        public WindowText(string text, bool temporary = false) {
+            SetText(text);
+            Temporary = temporary;
         }
-        
-        public WindowText(string text, ConsoleColor background, ConsoleColor foreground)
+        public WindowText(string text, ConsoleColor background, ConsoleColor foreground, bool temporary = false)
         {
             SetText(text);
             SetColors(background, foreground);
+            Temporary = temporary;
         }
 
         public void SetText(string text)
@@ -41,9 +43,15 @@ namespace BMDL.Console
             tempText = null;
         }
 
-        public void SetColors(ConsoleColor background, ConsoleColor foreground)
+        public void SetColors(ConsoleColor background, ConsoleColor foreground) { SetBG(background); SetFG(foreground); }
+
+        public void SetBG(ConsoleColor background)
         {
             bg = background;
+        }
+
+        public void SetFG(ConsoleColor foreground)
+        {
             fg = foreground;
         }
 

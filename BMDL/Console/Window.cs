@@ -15,6 +15,11 @@ namespace BMDL.Console
             foreach(var t in right)
                 t.ResetColors();
         }
+
+        public void RemoveTempText()
+        {
+            left = left.FindAll(t => !t.Temporary);
+        }
     }
 
     public abstract class Window

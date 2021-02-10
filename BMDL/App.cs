@@ -1,19 +1,38 @@
 using System;
+using System.IO;
 using System.Web;
 using BMDL.API;
 using BMDL.Console;
 
 namespace BMDL
 {
-    public class App
+    public static class App
     {
         public static APIAccess API = new APIAccess();
 
-        public static AppConsole Console = new AppConsole();
+        public static APIDownloadQueue DownloadQueue = new APIDownloadQueue();
 
-        public void Start()
+        public static AppConsole Console;
+
+        public static bool DEBUG = false;
+
+        public static string SONGS_PATH = @"";
+
+        public static void Start(bool debug)
         {
+            DEBUG = debug;
+            if(File.Exists("./songs_path.txt"))
+                SONGS_PATH = File.ReadAllText("./songs_path.txt");
+            Console = new AppConsole();
             Console.Run();
+        }
+    }
+
+    public static class StringsExtensions
+    {
+        public static string Crop(this string s, int length)
+        {
+            return s.Length <= length ? s : s.Substring(0, length - 2) + "..";
         }
     }
     

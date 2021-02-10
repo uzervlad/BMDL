@@ -6,6 +6,10 @@ using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Web;
+using BMDL.API.Responses;
+using BMDL.Console;
+using Flurl;
+using Flurl.Http;
 using Newtonsoft.Json;
 
 namespace BMDL.API
@@ -15,11 +19,11 @@ namespace BMDL.API
 
     public class APIAccess
     {
-        private HttpClient client = new HttpClient();
-        private OAuthToken token = new OAuthToken();
+        public OAuthToken token { private set; get; } = new OAuthToken();
 
         public event APILoginEvent OnAPILogin;
         public event SearchResultEvent OnSearchResult;
+        public event QueueUpdateEvent OnQueueUpdate;
 
         public APIAccess()
         {
@@ -28,87 +32,132 @@ namespace BMDL.API
 
         public async Task Login(string username, string password)
         {
-            var json = JsonConvert.SerializeObject(new {
-                username,
-                password,
-                grant_type = "password",
-                client_id = 5,
-                client_secret = "FGc9GAtyHzeQDshWP5Ah7dega8hJACCAJpQtw6OXk",
-                score = "*"
-            });
-            var body = new StringContent(json, Encoding.UTF8, "application/json");
+            DebugLog.AddLog("Logging in...", ConsoleColor.Yellow);
+            try {
+                var newToken = await "https://osu.ppy.sh/oauth/token"
+                    .PostJsonAsync(new
+                    {
+                        username,
+                        password,
+                        grant_type = "password",
+                        client_id = 5,
+                        client_secret = "FGc9GAtyHzeQDshWP5Ah7dega8hJACAJpQtw6OXk",
+                        scope = "*"
+                    })
+                    .ReceiveJson<OAuthToken>();
 
-            using (var client = new HttpClient())
-            {
-                var response = await client.PostAsync("https://osu.ppy.sh/oauth/token", body);
+                DebugLog.AddLog("Logged in!", ConsoleColor.Green);
 
-                var newToken = JsonConvert.DeserializeObject<OAuthToken>(response.Content.ReadAsStringAsync().Result);
-                
                 token = newToken;
 
                 File.WriteAllText(@"./refresh.txt", token.RefreshToken);
 
                 OnAPILogin?.Invoke();
+            } 
+            catch(Exception) 
+            {
+                DebugLog.AddLog("Login failed!", ConsoleColor.Red);
             }
         }
 
         public async Task LoginWithRefreshToken(string RefreshToken)
         {
+            DebugLog.AddLog("Logging in...", ConsoleColor.Yellow);
             await Refresh(RefreshToken);
+            DebugLog.AddLog("Logged in!", ConsoleColor.Green);
             OnAPILogin?.Invoke();
         }
 
         public async Task Refresh(string RefreshToken)
         {
-            var json = JsonConvert.SerializeObject(new {
-                grant_type = "refresh_token",
-                client_id = 5,
-                client_secret = "FGc9GAtyHzeQDshWP5Ah7dega8hJACCAJpQtw6OXk",
-                refresh_token = RefreshToken,
-                score = "*"
-            });
-            var body = new StringContent(json, Encoding.UTF8, "application/json");
+            DebugLog.AddLog("Refreshing token...", ConsoleColor.Blue);
+            try {
+                var newToken = await "https://osu.ppy.sh/oauth/token"
+                    .PostJsonAsync(new
+                    {
+                        grant_type = "refresh_token",
+                        client_id = 5,
+                        client_secret = "FGc9GAtyHzeQDshWP5Ah7dega8hJACAJpQtw6OXk",
+                        refresh_token = RefreshToken,
+                        scope = "*"
+                    })
+                    .ReceiveJson<OAuthToken>();
 
-            using (var client = new HttpClient())
-            {
-                var response = await client.PostAsync("https://osu.ppy.sh/oauth/token", body);
-
-                var newToken = JsonConvert.DeserializeObject<OAuthToken>(response.Content.ReadAsStringAsync().Result);
-                
                 token = newToken;
 
+                DebugLog.AddLog("Token refreshed!", ConsoleColor.Green);
+
                 File.WriteAllText(@"./refresh.txt", token.RefreshToken);
+            } 
+            catch(Exception)
+            {
+                DebugLog.AddLog("Refresh failed!", ConsoleColor.Red);
+            }
+        }
+
+        public async Task<APIBeatmapset> GetBeatmapset(int id, APIBeatmapsetLookupType lookupType = APIBeatmapsetLookupType.SetID)
+        {
+            try {
+                if(!token.IsValid)
+                    await Refresh(token.RefreshToken);
+                
+                var mapset = await ("https://osu.ppy.sh/api/v2/beatmapsets/"
+                    + (lookupType == APIBeatmapsetLookupType.SetID ? $"{id}" : $"lookup?beatmap_id={id}"))
+                    .WithOAuthBearerToken(token.AccessToken)
+                    .GetJsonAsync<APIBeatmapset>();
+
+                return mapset;
+            }
+            catch
+            {
+                throw new Exception("oh shit oh fuck");
             }
         }
 
         public async Task SearchBeatmapsets(string query)
         {
-            if(!token.IsValid)
-                await Refresh(token.RefreshToken);
-            var url = new Uri("https://osu.ppy.sh/api/v2/beatmapsets/search")
-                .AddQuery("q", query);
-
-            using (var client = new HttpClient())
-            {
-                var response = await client.GetAsync(url.ToString());
+            try {
+                if(!token.IsValid)
+                    await Refresh(token.RefreshToken);
                 
-                var mapsets = JsonConvert.DeserializeObject<APIBeatmapset[]>(response.Content.ReadAsStringAsync().Result);
+                DebugLog.AddLog($"Searching: {query}", ConsoleColor.Blue);
 
-                OnSearchResult?.Invoke(mapsets);
-            }   
+                var mapsets = await "https://osu.ppy.sh/api/v2/beatmapsets/search"
+                    .SetQueryParams(new
+                    {
+                        q = query
+                    })
+                    .WithOAuthBearerToken(token.AccessToken)
+                    .GetJsonAsync<APIBeatmapsetSearchResponse>();
+
+                DebugLog.AddLog($"Search successful! Results: {mapsets.Beatmapsets.Length}", ConsoleColor.Green);
+
+                OnSearchResult?.Invoke(mapsets.Beatmapsets);
+            } 
+            catch(Exception e)
+            {
+                DebugLog.AddError(e.ToString());
+            }
+        }
+
+        public enum APIBeatmapsetLookupType
+        {
+            SetID,
+            MapID
         }
 
         [Serializable]
-        private class OAuthToken
+        public class OAuthToken
         {
             [JsonProperty(@"access_token")]
             public string AccessToken;
             [JsonProperty(@"refresh_token")]
             public string RefreshToken;
+            [JsonProperty(@"expires_in")]
             public long ExpiresIn
             {
-                get => AccessTokenExpiry - DateTimeOffset.UtcNow.ToUnixTimeSeconds();
-                set => DateTimeOffset.Now.AddSeconds(value).ToUnixTimeSeconds();
+                get => AccessTokenExpiry - DateTimeOffset.Now.ToUnixTimeSeconds();
+                set => AccessTokenExpiry = DateTimeOffset.Now.AddSeconds(value).ToUnixTimeSeconds();
             }
 
             public long AccessTokenExpiry;
